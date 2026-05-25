@@ -14,8 +14,9 @@ const express = require('express');
 //  app.get('/hello', (req, res) => {
 //      res.send('Hello, Dev Tinder!');
 //  });
-app.get('/users', (req, res) => {
-    res.send('This is the users route for Dev Tinder!');
+app.get('/users/:id/:name/:age', (req, res) => {
+    const { id, name, age } = req.params;
+    res.send(`This is the users route for Dev Tinder! User ID: ${id}, Name: ${name}, Age: ${age}`);
 });
 
 app.post('/users', (req, res) => {
