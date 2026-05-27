@@ -8,30 +8,47 @@ const connectDb = require('./config/database');
 
 app.use(express.json());
 
-app.listen(3000, () => {
-        console.log('Server is running on port 3000');
-    }); 
-app.use(express.json());
 app.post('/signup', async (req, res) => {
+    const allowedFields = ['firstname', 'lastname', 'email', 'gender', 'password', 'phone', 'age', 'skills'];
+    const receivedFields = Object.keys(req.body);
+    const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
     try {
+        if (!isValidOperation) {
+            return res.status(400).json({
+                message: 'Invalid fields in the request body'
+            });
+        }
+        if (typeof req.body.skills === 'string') {
+            req.body.skills = req.body.skills
+                .split(',')
+                .map((skill) => skill.trim())
+                .filter(Boolean);
+        }
+
         const user = new User(req.body);
         await user.save();
         res.send('User signed up successfully!');
     } catch (err) {
         console.error('Error signing up user:', err);
-        res.status(500).send('Error signing up user');
+        res.status(500).json({
+            message: 'Error signing up user',
+            error: err.message,
+            code: err.code,
+            errors: err.errors
+        });
     }
 });
 
 app.get('/getusers', async (req, res) => {
     try {
-        const users = await User.find({email : req.body.email});
+        const filter = req.query.email ? { email: req.query.email } : {};
+        const users = await User.find(filter);
         res.json(users);
     }
     catch (err) {
         console.error('Error fetching users:', err);
         res.status(500).send('Error fetching users');
-    }  
+    }
 });
 
 app.get('/fetchusers', async (req, res) => {
@@ -48,18 +65,31 @@ app.get('/fetchusers', async (req, res) => {
 app.delete('/deleteusers', async (req, res) => {
     const userId = req.body.id;
     try {
-        await User.findByIdAndDelete(userId);
+        await User.findByIdAndDelete(userId,{
+                runValidators: true
+        });
         res.send('User deleted successfully!');
     } catch (err) {
         console.error('Error deleting user:', err);
         res.status(500).send('Error deleting user');
     }
 });
-app.patch('/updateusers', async (req, res) => {
-    const userId = req.body.id;
+app.patch('/updateusers/:userId', async (req, res) => {
+    const allowedFields = ['firstname', 'lastname', 'email', 'phone', 'age', 'gender', 'password', 'skills'];
+    const receivedFields = Object.keys(req.body);
+    const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
+    const userId = req.params.userId;
     const updateData = req.body;
     try {
-        const updatedUser = await User.findByIdAndUpdate(userId, updateData);
+        if (!isValidOperation) {
+            return res.status(400).json({
+                message: 'Invalid fields in the request body'
+            });
+        }
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData ,{
+            new: true,
+           runValidators: true
+        });
         res.send('User updated successfully!');
         console.log(updatedUser);
     }   
@@ -70,6 +100,9 @@ app.patch('/updateusers', async (req, res) => {
 });
 connectDb().then(() => {
     console.log('Connected to MongoDB');
+    app.listen(3000, () => {
+        console.log('Server is running on port 3000');
+    });
 }).catch((err) => {
     console.error('Error connecting to MongoDB:', err);
 });
