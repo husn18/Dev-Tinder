@@ -37,14 +37,37 @@ app.get('/getusers', async (req, res) => {
 app.get('/fetchusers', async (req, res) => {
     try {
         const users = await User.find();
-        res.json(users);
+        // res.json(users);
+        res.send(users);
     }
     catch (err) {
         console.error('Error fetching users:', err);
         res.status(500).send('Error fetching users');
     }  
 });
-
+app.delete('/deleteusers', async (req, res) => {
+    const userId = req.body.id;
+    try {
+        await User.findByIdAndDelete(userId);
+        res.send('User deleted successfully!');
+    } catch (err) {
+        console.error('Error deleting user:', err);
+        res.status(500).send('Error deleting user');
+    }
+});
+app.patch('/updateusers', async (req, res) => {
+    const userId = req.body.id;
+    const updateData = req.body;
+    try {
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData);
+        res.send('User updated successfully!');
+        console.log(updatedUser);
+    }   
+    catch (err) {
+        console.error('Error updating user:', err); 
+        res.status(500).send('Error updating user');
+    }
+});
 connectDb().then(() => {
     console.log('Connected to MongoDB');
 }).catch((err) => {
