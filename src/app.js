@@ -23,6 +23,28 @@ app.post('/signup', async (req, res) => {
     }
 });
 
+app.get('/getusers', async (req, res) => {
+    try {
+        const users = await User.find({email : req.body.email});
+        res.json(users);
+    }
+    catch (err) {
+        console.error('Error fetching users:', err);
+        res.status(500).send('Error fetching users');
+    }  
+});
+
+app.get('/fetchusers', async (req, res) => {
+    try {
+        const users = await User.find();
+        res.json(users);
+    }
+    catch (err) {
+        console.error('Error fetching users:', err);
+        res.status(500).send('Error fetching users');
+    }  
+});
+
 connectDb().then(() => {
     console.log('Connected to MongoDB');
 }).catch((err) => {
