@@ -5,6 +5,9 @@ const app = express();
 const User = require('./models/user');
 const mongoose = require('mongoose');
 const connectDb = require('./config/database');
+const validator = require('validator');
+const bcrypt = require('bcrypt');
+const { validateSignup } = require('./utils/validators');
 
 app.use(express.json());
 
@@ -13,6 +16,11 @@ app.post('/signup', async (req, res) => {
     const receivedFields = Object.keys(req.body);
     const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
     try {
+        validateSignup(req);
+        const {firstname, lastname, email, gender, password, phone, age} = req.body;    
+        // Hash the password before saving
+        const hashedPassword = await bcrypt.hash(password, 10);
+        req.body.password = hashedPassword;
         if (!isValidOperation) {
             return res.status(400).json({
                 message: 'Invalid fields in the request body'
@@ -24,8 +32,14 @@ app.post('/signup', async (req, res) => {
                 .map((skill) => skill.trim())
                 .filter(Boolean);
         }
-
-        const user = new User(req.body);
+        const user = new User({
+            firstname,
+            lastname,
+            email,
+            gender,
+            password: req.body.password,
+            phone,
+        });
         await user.save();
         res.send('User signed up successfully!');
     } catch (err) {
@@ -39,6 +53,28 @@ app.post('/signup', async (req, res) => {
     }
 });
 
+app.post('/login', async (req, res) => {    
+    const { email, password } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid email or password' });
+        }   
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (!isPasswordMatch) {
+            return res.status(400).json({ message: 'Invalid email or password' });
+        }
+        res.send('User logged in successfully!');
+    } catch (err) { 
+        console.error('Error logging in user:', err);
+        res.status(500).json({
+            message: 'Error logging in user',
+            error: err.message,
+            code: err.code,
+            errors: err.errors
+        });
+    }
+});
 app.get('/getusers', async (req, res) => {
     try {
         const filter = req.query.email ? { email: req.query.email } : {};
@@ -62,6 +98,7 @@ app.get('/fetchusers', async (req, res) => {
         res.status(500).send('Error fetching users');
     }  
 });
+
 app.delete('/deleteusers', async (req, res) => {
     const userId = req.body.id;
     try {
@@ -74,6 +111,7 @@ app.delete('/deleteusers', async (req, res) => {
         res.status(500).send('Error deleting user');
     }
 });
+
 app.patch('/updateusers/:userId', async (req, res) => {
     const allowedFields = ['firstname', 'lastname', 'email', 'phone', 'age', 'gender', 'password', 'skills'];
     const receivedFields = Object.keys(req.body);
@@ -98,6 +136,7 @@ app.patch('/updateusers/:userId', async (req, res) => {
         res.status(500).send('Error updating user');
     }
 });
+
 connectDb().then(() => {
     console.log('Connected to MongoDB');
     app.listen(3000, () => {

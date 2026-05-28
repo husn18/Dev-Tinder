@@ -38,7 +38,7 @@ const userSchema = new Schema({
     phone: {
         type: String,
         required: true,
-        unique: true,
+        // unique: true,
         minlength: 10,
         maxlength: 15,
         validate(value) {
@@ -56,7 +56,7 @@ const userSchema = new Schema({
     age: {
         type: Number,
         min: 18,
-        required: true,
+        // required: true,
         validate(value) {
             if (!Number.isInteger(value)) {
                 throw new Error('Age must be an integer');
@@ -71,7 +71,7 @@ const userSchema = new Schema({
                 throw new Error('Invalid gender value');
             }
         },
-        required: true
+        // required: true
     },
     password: {
         type: String,
