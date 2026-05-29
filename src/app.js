@@ -8,8 +8,14 @@ const connectDb = require('./config/database');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const { validateSignup } = require('./utils/validators');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const userAuth = require('./middlewares/userAuth');
+const { adminRouter, userRouter } = require('./middlewares/adminrouter');
+
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post('/signup', async (req, res) => {
     const allowedFields = ['firstname', 'lastname', 'email', 'gender', 'password', 'phone', 'age', 'skills'];
@@ -60,9 +66,14 @@ app.post('/login', async (req, res) => {
         if (!user) {
             return res.status(400).json({ message: 'Invalid email or password' });
         }   
-        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        const isPasswordMatch = await user.toValidatePassword(password);
         if (!isPasswordMatch) {
             return res.status(400).json({ message: 'Invalid email or password' });
+        }
+        if(isPasswordMatch) {
+            const token = await user.toJWT();
+            // console.log('Generated JWT token:', token);
+            res.cookie('token', token, { httpOnly: true });
         }
         res.send('User logged in successfully!');
     } catch (err) { 
@@ -75,35 +86,27 @@ app.post('/login', async (req, res) => {
         });
     }
 });
-app.get('/getusers', async (req, res) => {
-    try {
-        const filter = req.query.email ? { email: req.query.email } : {};
-        const users = await User.find(filter);
-        res.json(users);
-    }
-    catch (err) {
-        console.error('Error fetching users:', err);
-        res.status(500).send('Error fetching users');
+
+app.get('/profile',userAuth, async (req, res) => {
+    try{
+        const userId = req.userId;
+        const user = await User.findById(userId);
+        res.json({
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,  
+        });
+    } catch (err) {
+        console.error('Error fetching user profile:', err);
+        res.status(500).json({ message: 'Error fetching user profile' });
     }
 });
 
-app.get('/fetchusers', async (req, res) => {
-    try {
-        const users = await User.find();
-        // res.json(users);
-        res.send(users);
-    }
-    catch (err) {
-        console.error('Error fetching users:', err);
-        res.status(500).send('Error fetching users');
-    }  
-});
-
-app.delete('/deleteusers', async (req, res) => {
+app.delete('/deleteusers', userAuth, async (req, res) => {
     const userId = req.body.id;
     try {
-        await User.findByIdAndDelete(userId,{
-                runValidators: true
+        await User.findByIdAndDelete(userId, {
+            runValidators: true
         });
         res.send('User deleted successfully!');
     } catch (err) {
@@ -112,7 +115,7 @@ app.delete('/deleteusers', async (req, res) => {
     }
 });
 
-app.patch('/updateusers/:userId', async (req, res) => {
+app.patch('/updateusers/:userId', userAuth, async (req, res) => {
     const allowedFields = ['firstname', 'lastname', 'email', 'phone', 'age', 'gender', 'password', 'skills'];
     const receivedFields = Object.keys(req.body);
     const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
@@ -124,9 +127,9 @@ app.patch('/updateusers/:userId', async (req, res) => {
                 message: 'Invalid fields in the request body'
             });
         }
-        const updatedUser = await User.findByIdAndUpdate(userId, updateData ,{
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
             new: true,
-           runValidators: true
+            runValidators: true
         });
         res.send('User updated successfully!');
         console.log(updatedUser);
@@ -136,7 +139,25 @@ app.patch('/updateusers/:userId', async (req, res) => {
         res.status(500).send('Error updating user');
     }
 });
-
+app.post('/sendconnectionrequest', userAuth, async (req, res) => {
+    const { senderId, receiverId } = req.body;
+    try {
+        const sender = await User.findById(senderId);
+        const receiver = await User.findById(receiverId);
+        if (!sender || !receiver) {
+            return res.status(404).json({ message: 'Sender or receiver not found' });
+        }
+        if (receiver.connectionRequests.includes(senderId)) {
+            return res.status(400).json({ message: 'Connection request already sent' });
+        }
+        receiver.connectionRequests.push(senderId);
+        await receiver.save();
+        res.send('Connection request sent successfully!');
+    } catch (err) {
+        console.error('Error sending connection request:', err);
+        res.status(500).json({ message: 'Error sending connection request' });
+    }
+});
 connectDb().then(() => {
     console.log('Connected to MongoDB');
     app.listen(3000, () => {

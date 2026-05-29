@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const validator = require('validator');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const userSchema = new Schema({
     firstname: {
         type: String,
@@ -75,26 +77,32 @@ const userSchema = new Schema({
     },
     password: {
         type: String,
-        required: true,
-        validate(value) {
-            if (!validator.isStrongPassword(value, {
-                minLength: 8,
-                minLowercase: 1,
-                minUppercase: 1,
-                minNumbers: 1,
-                minSymbols: 1
-            })) {
-                throw new Error('Password is not strong enough');
-            }
-        }
+        required: true
     },
     skills: {
         type: [String],
+        default: []
+    },
+    connectionRequests: {
+        type: [{ type: Schema.Types.ObjectId, ref: 'User' }],
         default: []
     }
 }, {
     timestamps: true
 });
+userSchema.methods.toJWT = function() {
+    const user = this;
+    const payload = {
+        userId: user._id
+    };
+    return jwt.sign(payload, 'Dev-Tinder@123', { expiresIn: '1h' });
+};
+
+userSchema.methods.toValidatePassword = function(passwordInput) {
+    const user = this;
+    return bcrypt.compare(passwordInput, user.password);
+};
+
 const User = mongoose.model('User', userSchema);
 module.exports = User; 
 
