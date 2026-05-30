@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const validator = require('validator');
 
 const userAuth = (req, res, next) => {
     try {
@@ -35,5 +36,55 @@ const userAuth = (req, res, next) => {
         });
     }
 };
+const validateUpdateProfile = (req) => {
+    const allowedFields = ['firstname', 'lastname', 'phone', 'age', 'gender', 'skills'];
+    const receivedFields = Object.keys(req.body);
+    const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
+    if (!isValidOperation) {
+        throw new Error('Invalid fields in the request body');
+    }
 
-module.exports = userAuth;
+    if (req.body.skills && typeof req.body.skills === 'string') {
+        req.body.skills = req.body.skills
+            .split(',')
+            .map((skill) => skill.trim())
+            .filter(Boolean);
+    }
+
+    if (req.body.age && (typeof req.body.age !== 'number' || req.body.age < 18)) {
+        throw new Error('Age must be a number and at least 18');
+    }
+
+    if (req.body.phone && typeof req.body.phone !== 'string') {
+        throw new Error('Phone must be a string');
+    }
+
+    if (req.body.gender && typeof req.body.gender !== 'string') {
+        throw new Error('Gender must be a string');
+    }
+
+    if (req.body.firstname && typeof req.body.firstname !== 'string') {
+        throw new Error('First name must be a string');
+    }
+
+    if (req.body.lastname && typeof req.body.lastname !== 'string') {
+        throw new Error('Last name must be a string');
+    }
+};
+const validateForgotPassword = (req) => {
+    const { email, newPassword } = req.body;
+
+    if (typeof email !== 'string' || email.trim() === '' || !validator.isEmail(email)) {
+        throw new Error('Email is required and must be a valid email address');
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.trim() === '') {
+        throw new Error('New password is required');
+    }
+
+    if (!validator.isStrongPassword(newPassword, { minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })) {
+        throw new Error('Password must be at least 8 characters long and include uppercase letters, lowercase letters, numbers, and special characters');
+    }
+};
+
+module.exports = {userAuth, validateUpdateProfile, validateForgotPassword};

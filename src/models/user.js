@@ -103,6 +103,6 @@ userSchema.methods.toValidatePassword = function(passwordInput) {
     return bcrypt.compare(passwordInput, user.password);
 };
 
-const User = mongoose.model('User', userSchema);
-module.exports = User; 
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+module.exports = User;
 
