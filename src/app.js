@@ -2,162 +2,20 @@ const dns = require('dns');
 dns.setServers(['8.8.8.8']);
 const express = require('express');
 const app = express();
-const User = require('./models/user');
 const mongoose = require('mongoose');
 const connectDb = require('./config/database');
-const validator = require('validator');
-const bcrypt = require('bcrypt');
-const { validateSignup } = require('./utils/validators');
 const cookieParser = require('cookie-parser');
-const jwt = require('jsonwebtoken');
-const userAuth = require('./middlewares/userAuth');
-const { adminRouter, userRouter } = require('./middlewares/adminrouter');
-
+const authRouter = require('./routes/auth');
+const profileRouter = require('./routes/profile');
+const requestRouter = require('./routes/request');
 
 app.use(express.json());
 app.use(cookieParser());
 
-app.post('/signup', async (req, res) => {
-    const allowedFields = ['firstname', 'lastname', 'email', 'gender', 'password', 'phone', 'age', 'skills'];
-    const receivedFields = Object.keys(req.body);
-    const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
-    try {
-        validateSignup(req);
-        const {firstname, lastname, email, gender, password, phone, age} = req.body;    
-        // Hash the password before saving
-        const hashedPassword = await bcrypt.hash(password, 10);
-        req.body.password = hashedPassword;
-        if (!isValidOperation) {
-            return res.status(400).json({
-                message: 'Invalid fields in the request body'
-            });
-        }
-        if (typeof req.body.skills === 'string') {
-            req.body.skills = req.body.skills
-                .split(',')
-                .map((skill) => skill.trim())
-                .filter(Boolean);
-        }
-        const user = new User({
-            firstname,
-            lastname,
-            email,
-            gender,
-            password: req.body.password,
-            phone,
-        });
-        await user.save();
-        res.send('User signed up successfully!');
-    } catch (err) {
-        console.error('Error signing up user:', err);
-        res.status(500).json({
-            message: 'Error signing up user',
-            error: err.message,
-            code: err.code,
-            errors: err.errors
-        });
-    }
-});
+app.use('/', authRouter);
+app.use('/', profileRouter);
+app.use('/', requestRouter);
 
-app.post('/login', async (req, res) => {    
-    const { email, password } = req.body;
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: 'Invalid email or password' });
-        }   
-        const isPasswordMatch = await user.toValidatePassword(password);
-        if (!isPasswordMatch) {
-            return res.status(400).json({ message: 'Invalid email or password' });
-        }
-        if(isPasswordMatch) {
-            const token = await user.toJWT();
-            // console.log('Generated JWT token:', token);
-            res.cookie('token', token, { httpOnly: true });
-        }
-        res.send('User logged in successfully!');
-    } catch (err) { 
-        console.error('Error logging in user:', err);
-        res.status(500).json({
-            message: 'Error logging in user',
-            error: err.message,
-            code: err.code,
-            errors: err.errors
-        });
-    }
-});
-
-app.get('/profile',userAuth, async (req, res) => {
-    try{
-        const userId = req.userId;
-        const user = await User.findById(userId);
-        res.json({
-            firstname: user.firstname,
-            lastname: user.lastname,
-            email: user.email,  
-        });
-    } catch (err) {
-        console.error('Error fetching user profile:', err);
-        res.status(500).json({ message: 'Error fetching user profile' });
-    }
-});
-
-app.delete('/deleteusers', userAuth, async (req, res) => {
-    const userId = req.body.id;
-    try {
-        await User.findByIdAndDelete(userId, {
-            runValidators: true
-        });
-        res.send('User deleted successfully!');
-    } catch (err) {
-        console.error('Error deleting user:', err);
-        res.status(500).send('Error deleting user');
-    }
-});
-
-app.patch('/updateusers/:userId', userAuth, async (req, res) => {
-    const allowedFields = ['firstname', 'lastname', 'email', 'phone', 'age', 'gender', 'password', 'skills'];
-    const receivedFields = Object.keys(req.body);
-    const isValidOperation = receivedFields.every((field) => allowedFields.includes(field));
-    const userId = req.params.userId;
-    const updateData = req.body;
-    try {
-        if (!isValidOperation) {
-            return res.status(400).json({
-                message: 'Invalid fields in the request body'
-            });
-        }
-        const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-            new: true,
-            runValidators: true
-        });
-        res.send('User updated successfully!');
-        console.log(updatedUser);
-    }   
-    catch (err) {
-        console.error('Error updating user:', err); 
-        res.status(500).send('Error updating user');
-    }
-});
-app.post('/sendconnectionrequest', userAuth, async (req, res) => {
-    const { senderId, receiverId } = req.body;
-    try {
-        const sender = await User.findById(senderId);
-        const receiver = await User.findById(receiverId);
-        if (!sender || !receiver) {
-            return res.status(404).json({ message: 'Sender or receiver not found' });
-        }
-        if (receiver.connectionRequests.includes(senderId)) {
-            return res.status(400).json({ message: 'Connection request already sent' });
-        }
-        receiver.connectionRequests.push(senderId);
-        await receiver.save();
-        res.send('Connection request sent successfully!');
-    } catch (err) {
-        console.error('Error sending connection request:', err);
-        res.status(500).json({ message: 'Error sending connection request' });
-    }
-});
 connectDb().then(() => {
     console.log('Connected to MongoDB');
     app.listen(3000, () => {
