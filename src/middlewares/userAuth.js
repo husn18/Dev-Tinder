@@ -3,7 +3,14 @@ const validator = require('validator');
 
 const userAuth = (req, res, next) => {
     try {
-        const token = req.cookies.token;
+        let token = req.cookies.token;
+        if (!token && req.headers.authorization) {
+            const authHeader = req.headers.authorization.trim();
+            if (authHeader.toLowerCase().startsWith('bearer ')) {
+                token = authHeader.slice(7).trim();
+            }
+        }
+
         if (!token) {
             return res.status(401).json({ 
                 message: 'Unauthorized: No token provided',
