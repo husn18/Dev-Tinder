@@ -85,4 +85,55 @@ requestRouter.post(
     }
 );
 
+requestRouter.post('/connectionrequestresponse/:status/:requestId', userAuth, async (req, res) => {
+    try {
+        const { status, requestId } = req.params;
+        const loggedInUserId = req.userId; // use userId set by middleware
+
+        const allowedStatuses = ['ignored', 'interested'];
+
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({
+                message: 'Invalid status'
+            });
+        }
+
+        const connectionRequestData = await ConnectionRequest.findById(requestId);
+
+        if (!connectionRequestData) {
+            return res.status(404).json({
+                message: 'Connection request not found'
+            });
+        }
+
+        const connectionRequest = await ConnectionRequest.findOne({
+            _id: requestId,
+            toUserId: loggedInUserId
+            ,
+            status: 'interested'
+        });
+
+        if (!connectionRequest) {
+            return res.status(404).json({
+                message: 'Connection request not found'
+            });
+        }
+
+        connectionRequest.status = status;
+        await connectionRequest.save();
+
+        res.status(200).json({
+            message: 'Connection request response updated successfully',
+            data: connectionRequest
+        });
+
+    } catch (err) {
+        console.error('Error updating request response:', err);
+
+        res.status(500).json({
+            message: 'Something went wrong',
+            error: err.message
+        });
+    }
+});
 module.exports = requestRouter;
