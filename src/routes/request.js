@@ -108,10 +108,9 @@ requestRouter.post('/connectionrequestresponse/:status/:requestId', userAuth, as
 
         const connectionRequest = await ConnectionRequest.findOne({
             _id: requestId,
-            toUserId: loggedInUserId
-            ,
+            toUserId: loggedInUserId,
             status: 'interested'
-        });
+        }).populate('fromUserId', 'firstname lastname age gender skills');
 
         if (!connectionRequest) {
             return res.status(404).json({
